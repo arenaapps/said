@@ -10,6 +10,8 @@ Swift 5, AppKit and AVFoundation. macOS 14 or later.
 
 Download `Said-<version>.zip` from the Releases page, unzip it and drag Said into Applications. It runs on Intel and Apple silicon Macs with macOS 14 or later.
 
+Said isn't signed with a Developer ID, so the first time you open it macOS says it can't check it for malicious software. Click Done, open System Settings › Privacy & Security, scroll down to the message about Said and click Open Anyway, then confirm. You only do this once. If you'd rather not, build it yourself from the source below.
+
 On first launch the Said window opens on its Setup tab, which walks you through the microphone, Input Monitoring and Accessibility permissions, and asks you to set System Settings › Keyboard › "Press 🌐 key to" to Do Nothing, so holding Fn doesn't also open the emoji picker. It downloads the speech model (about 490 MB) at the same time. Once everything is ticked, try a dictation in the box at the bottom.
 
 ## Build and run
@@ -20,7 +22,7 @@ open build/Said.app
 ./scripts/release.sh         # build/Said-<version>.zip that runs on Intel and Apple silicon
 ```
 
-Building needs Xcode and CMake. The first build clones whisper.cpp into `vendor/`. `bundle.sh` tunes whisper to your own processor; `release.sh` builds a portable copy for each kind of Mac and joins them.
+Building needs Xcode and CMake. The first build clones whisper.cpp into `vendor/`. `bundle.sh` tunes whisper to your own processor; `release.sh` builds a portable copy for each kind of Mac, joins them, and leaves the app unsigned with its debug symbols stripped, so the download carries no names or folder paths.
 
 To sign with your own certificate so macOS keeps the permissions between builds, create `scripts/sign.local` (it's gitignored):
 

@@ -5,6 +5,7 @@
 #   SAID_ARCH=arm64 SAID_PORTABLE=1 SAID_WHISPER_DIR=vendor/release/arm64 ./scripts/build-whisper.sh
 #                                              one architecture that runs on any Mac of that kind (for releases)
 set -euo pipefail
+# -ffile-prefix-map keeps the builder's folder (and so their user name) out of the library.
 cd "$(dirname "$0")/.."
 VERSION=v1.9.5
 SRC=vendor/whisper.cpp
@@ -29,6 +30,8 @@ fi
   -DCMAKE_OSX_ARCHITECTURES="$ARCH" -DCMAKE_OSX_DEPLOYMENT_TARGET=14.0 \
   -DWHISPER_BUILD_TESTS=OFF -DWHISPER_BUILD_EXAMPLES=OFF -DWHISPER_BUILD_SERVER=OFF \
   "${CPU[@]}" -DGGML_METAL_EMBED_LIBRARY=ON \
+  -DCMAKE_C_FLAGS="-ffile-prefix-map=$PWD/=" -DCMAKE_CXX_FLAGS="-ffile-prefix-map=$PWD/=" \
+  -DCMAKE_OBJC_FLAGS="-ffile-prefix-map=$PWD/=" -DCMAKE_OBJCXX_FLAGS="-ffile-prefix-map=$PWD/=" \
   -DCMAKE_INSTALL_PREFIX="$OUT" > /dev/null
 "$CMAKE" --build "$BUILD" -j "$(sysctl -n hw.ncpu)" > /dev/null
 "$CMAKE" --install "$BUILD" > /dev/null

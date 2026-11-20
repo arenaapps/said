@@ -19,7 +19,7 @@ for LIB in "$REL"/arm64/lib/*.a; do
   lipo -create "$LIB" "$REL/x86_64/lib/$NAME" -output "$REL/universal/lib/$NAME"
 done
 
-SAID_WHISPER_DIR="$REL/universal" SAID_SWIFT_ARCHS="--arch arm64 --arch x86_64" ./scripts/bundle.sh release
+SAID_UNSIGNED=1 SAID_WHISPER_DIR="$REL/universal" SAID_SWIFT_ARCHS="--arch arm64 --arch x86_64" ./scripts/bundle.sh release
 lipo -info build/Said.app/Contents/MacOS/Said
 
 ZIP="build/Said-$VERSION.zip"

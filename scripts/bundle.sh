@@ -13,12 +13,15 @@ APP=build/Said.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Said"
+# A public build drops its debug symbols, which hold the builder's folder paths.
+[ -n "${SAID_UNSIGNED:-}" ] && strip -S -x "$APP/Contents/MacOS/Said"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
 cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Put SAID_SIGN_IDENTITY=<certificate hash or name> in scripts/sign.local (gitignored)
 # or the environment. Without one the app is signed ad hoc, and macOS asks for
 # permissions again after each rebuild.
-[ -f scripts/sign.local ] && source scripts/sign.local
+# SAID_UNSIGNED=1 (release.sh) skips any certificate, so public downloads carry no personal or company name.
+[ -z "${SAID_UNSIGNED:-}" ] && [ -f scripts/sign.local ] && source scripts/sign.local
 IDENTITY="${SAID_SIGN_IDENTITY:--}"
 codesign --force --sign "$IDENTITY" --entitlements Resources/Said.entitlements "$APP" 2>/dev/null \
   || codesign --force --sign - --entitlements Resources/Said.entitlements "$APP"
