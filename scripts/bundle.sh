@@ -4,9 +4,11 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 CONFIG="${1:-release}"
-[ -f vendor/whisper/lib/libwhisper.a ] || ./scripts/build-whisper.sh
-swift build -c "$CONFIG"
-BIN="$(swift build -c "$CONFIG" --show-bin-path)/Said"
+[ -f "${SAID_WHISPER_DIR:-vendor/whisper}/lib/libwhisper.a" ] || ./scripts/build-whisper.sh
+# SAID_SWIFT_ARCHS="--arch arm64 --arch x86_64" builds for both kinds of Mac (see release.sh).
+ARCHS=(${SAID_SWIFT_ARCHS:-})
+swift build -c "$CONFIG" ${ARCHS[@]+"${ARCHS[@]}"}
+BIN="$(swift build -c "$CONFIG" ${ARCHS[@]+"${ARCHS[@]}"} --show-bin-path)/Said"
 APP=build/Said.app
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"

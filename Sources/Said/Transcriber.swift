@@ -18,10 +18,11 @@ final class Transcriber {
 
     static func modelPath(name: String) -> String? {
         let home = FileManager.default.homeDirectoryForCurrentUser.path
-        let candidates = [
-            "\(home)/Library/Application Support/Said/\(name)",
-            "\(home)/.local/whisper-models/\(name)",
-        ]
+        var candidates = ["\(home)/Library/Application Support/Said/\(name)"]
+        // SAID_APP_MODELS_ONLY=1 pretends the shared folder is empty, to test the first-run download.
+        if ProcessInfo.processInfo.environment["SAID_APP_MODELS_ONLY"] == nil {
+            candidates.append("\(home)/.local/whisper-models/\(name)")
+        }
         return candidates.first { FileManager.default.fileExists(atPath: $0) }
     }
 

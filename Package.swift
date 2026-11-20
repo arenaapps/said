@@ -2,7 +2,8 @@
 import PackageDescription
 
 // whisper.cpp is built into vendor/whisper by scripts/build-whisper.sh.
-let whisper = "\(Context.packageDirectory)/vendor/whisper"
+// scripts/release.sh points SAID_WHISPER_DIR at a build for both Intel and Apple silicon.
+let whisper = "\(Context.packageDirectory)/\(Context.environment["SAID_WHISPER_DIR"] ?? "vendor/whisper")"
 
 let package = Package(
     name: "Said",

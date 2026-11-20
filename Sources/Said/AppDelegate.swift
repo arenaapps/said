@@ -13,6 +13,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let recorder = Recorder()
     private let transcriber = Transcriber()
     private let indicator = Indicator()
+    private let setup = Setup()
+    private let preferences = Preferences()
+    private lazy var saidWindow = SaidWindow(setup: setup, preferences: preferences)
     private var levelTimer: Timer?
     private let whisperQueue = DispatchQueue(label: "com.arenaapps.said.whisper", qos: .userInitiated)
 
@@ -27,18 +30,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var session: LiveSession?
 
     private var tidyEnabled: Bool {
-        get { UserDefaults.standard.object(forKey: "tidyWithClaude") as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: "tidyWithClaude") }
+        get { Preferences.tidyPreference }
+        set { UserDefaults.standard.set(newValue, forKey: Preferences.tidyKey) }
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
+        setup.onModelReady = { [weak self] in self?.loadModel() }
+        saidWindow.onEditWordList = { [weak self] in self?.editVocabulary() }
+        preferences.onTidyChanged = { [weak self] in self?.refresh() }
         indicator.onOpenSettings = {
             NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
         }
-        askForPermissions()
         startHotkey()
         loadModel()
+        openSetupIfNeeded()
+        // `Said --open setup|general|claude` opens the window on that tab straight away, for checking the layout.
+        if let i = CommandLine.arguments.firstIndex(of: "--open"), i + 1 < CommandLine.arguments.count {
+            saidWindow.show(SaidWindow.Tab(rawValue: CommandLine.arguments[i + 1].capitalized) ?? .setup)
+        }
     }
 
     // MARK: Setup
@@ -50,6 +60,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         timingLine.isEnabled = false
         timingLine.isHidden = true
         tidyItem.target = self
+        let settingsItem = NSMenuItem(title: "Said…", action: #selector(openSettings), keyEquivalent: ",")
+        settingsItem.target = self
+        // When something is missing the status line says what, and clicking it opens setup.
+        statusLine.action = #selector(openSetup)
+        statusLine.target = self
+        menu.autoenablesItems = false
         menu.addItem(statusLine)
         menu.addItem(timingLine)
         menu.addItem(.separator())
@@ -58,18 +74,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         words.target = self
         menu.addItem(words)
         menu.addItem(.separator())
+        menu.addItem(settingsItem)
+        menu.addItem(.separator())
         menu.addItem(NSMenuItem(title: "Quit Said", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
         statusItem.menu = menu
         refresh()
     }
 
-    private func askForPermissions() {
-        AVCaptureDevice.requestAccess(for: .audio) { _ in }
-        // Needed to press Cmd+V on your behalf.
-        let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
-        // Needed to see the Fn key.
-        if !CGPreflightListenEventAccess() { _ = CGRequestListenEventAccess() }
+    /// First launch, or something Said can't work without is missing.
+    /// Opens the Said window on Setup when something it can't work without is missing.
+    private func openSetupIfNeeded() {
+        setup.refresh()
+        if setup.essentialsMissing { saidWindow.show(.setup) }
     }
 
     private func startHotkey() {
@@ -78,7 +94,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         hotkey.onRelease = { [weak self] in self?.finish() }
         hotkey.onCancel = { [weak self] in self?.cancel() }
         if hotkey.start() { return }
-        problem = "Allow Said in Input Monitoring"
+        problem = "Allow Said in Input Monitoring…"
         refresh()
         // Keep trying until the permission is granted.
         Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] timer in
@@ -91,12 +107,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func loadModel() {
         guard let path = Transcriber.defaultModelPath() else {
-            problem = "Speech model not found"
+            problem = "Downloading the speech model…"
             refresh()
             return
         }
+        if problem?.hasPrefix("Downloading") == true { problem = nil }
         whisperQueue.async {
             let ok = self.transcriber.load(path: path)
+            Trace.log("model: \((path as NSString).lastPathComponent) \(ok ? "loaded" : "failed to load")")
             DispatchQueue.main.async {
                 if !ok { self.problem = "Speech model failed to load" }
                 self.state = .idle
@@ -112,7 +130,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
             // Without access macOS hands over silence, so say so instead of failing quietly.
             log.error("microphone not allowed")
-            problem = "Allow Said to use the Microphone"
+            problem = "Allow Said to use the Microphone…"
             refresh()
             indicator.show(.permission("Said needs the microphone"))
             AVCaptureDevice.requestAccess(for: .audio) { granted in
@@ -237,6 +255,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSWorkspace.shared.open(Vocabulary.fileURL)
     }
 
+    @objc private func openSettings() { saidWindow.show() }
+    @objc private func openSetup() { saidWindow.show(.setup) }
+
     @objc private func toggleTidy() {
         tidyEnabled.toggle()
         refresh()
@@ -247,13 +268,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let icon: NSImage
         if let problem {
             statusLine.title = problem
+            statusLine.isEnabled = true
             icon = MenuIcons.problem
         } else {
             switch state {
-            case .loading: statusLine.title = "Loading speech model…"; icon = MenuIcons.writing
-            case .idle: statusLine.title = "Hold Fn to dictate"; icon = MenuIcons.ready
-            case .recording: statusLine.title = "Listening…"; icon = MenuIcons.listening
-            case .working: statusLine.title = "Writing…"; icon = MenuIcons.writing
+            case .loading: statusLine.isEnabled = false; statusLine.title = "Loading speech model…"; icon = MenuIcons.writing
+            case .idle: statusLine.isEnabled = false; statusLine.title = "Hold Fn to dictate"; icon = MenuIcons.ready
+            case .recording: statusLine.isEnabled = false; statusLine.title = "Listening…"; icon = MenuIcons.listening
+            case .working: statusLine.isEnabled = false; statusLine.title = "Writing…"; icon = MenuIcons.writing
             }
         }
         statusItem?.button?.image = icon

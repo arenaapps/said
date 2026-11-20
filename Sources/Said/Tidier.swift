@@ -39,6 +39,21 @@ struct Tidier {
         return String(data: data, encoding: .utf8)
     }
 
+    /// Replaces any saved key with this one. Returns false if the Keychain refused it.
+    @discardableResult
+    static func saveAPIKey(_ key: String) -> Bool {
+        let match: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: keychainService,
+            kSecAttrAccount as String: keychainAccount,
+        ]
+        SecItemDelete(match as CFDictionary)
+        var item = match
+        item[kSecValueData as String] = Data(key.utf8)
+        item[kSecAttrLabel as String] = "Said: Anthropic API key"
+        return SecItemAdd(item as CFDictionary, nil) == errSecSuccess
+    }
+
     static func prompt(vocabulary: [String]) -> String {
         guard !vocabulary.isEmpty else { return systemPrompt }
         return systemPrompt + """
