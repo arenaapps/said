@@ -1,0 +1,7 @@
+.build/
+build/
+vendor/
+*.app
+.DS_Store
+HANDOFF.md
+scripts/sign.local
