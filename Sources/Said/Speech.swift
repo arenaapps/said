@@ -20,6 +20,13 @@ enum Speech {
         rms(samples) < silenceRMS
     }
 
+    /// Turns a loudness into a bar height from 0 to 1. Normal speech sits around
+    /// 0.02-0.08, so that range fills most of the bar; background noise stays flat.
+    static func barLevel(_ rms: Float) -> Double {
+        guard rms > silenceRMS else { return 0 }
+        return min(1, pow(Double(rms) / 0.06, 0.7))
+    }
+
     /// Removes whisper's non-speech markers such as [BLANK_AUDIO] or (music),
     /// and tidies the spacing.
     static func tidyTranscript(_ text: String) -> String {

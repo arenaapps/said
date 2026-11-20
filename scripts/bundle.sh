@@ -12,6 +12,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN" "$APP/Contents/MacOS/Said"
 cp Resources/Info.plist "$APP/Contents/Info.plist"
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # Put SAID_SIGN_IDENTITY=<certificate hash or name> in scripts/sign.local (gitignored)
 # or the environment. Without one the app is signed ad hoc, and macOS asks for
 # permissions again after each rebuild.

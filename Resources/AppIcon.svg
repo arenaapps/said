@@ -1,0 +1,8 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- macOS icon grid: 824 px body on a 1024 canvas. The S is drawn on a 120 px tile and scaled up. -->
+  <rect x="100" y="100" width="824" height="824" rx="185" fill="#2C4BFF"/>
+  <g transform="translate(72.53 72.53) scale(6.8667)">
+    <path d="M84 41c-6-6-13-8-21-8-11 0-20 6-20 15 0 19 43 12 43 31 0 10-9 17-22 17-9 0-17-3-23-9"
+          stroke="#F4F1EA" stroke-width="18" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

@@ -3,8 +3,8 @@ import AVFoundation
 import os
 
 /// Ties the pieces together: hold Fn → record → whisper → (Claude) → paste.
-/// The menu bar item is a plain system menu for now; the look comes after the
-/// Figma sketch.
+/// While dictating, a pill at the bottom of the screen shows it's listening,
+/// then writing (Figma sketch v1, 20 Nov 2026).
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private enum State { case loading, idle, recording, working }
 
@@ -12,6 +12,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let hotkey = Hotkey()
     private let recorder = Recorder()
     private let transcriber = Transcriber()
+    private let indicator = Indicator()
+    private var levelTimer: Timer?
     private let whisperQueue = DispatchQueue(label: "com.arenaapps.said.whisper", qos: .userInitiated)
 
     private var statusItem: NSStatusItem!
@@ -31,6 +33,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         buildMenu()
+        indicator.onOpenSettings = {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
+        }
         askForPermissions()
         startHotkey()
         loadModel()
@@ -109,6 +114,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             log.error("microphone not allowed")
             problem = "Allow Said to use the Microphone"
             refresh()
+            indicator.show(.permission("Said needs the microphone"))
             AVCaptureDevice.requestAccess(for: .audio) { granted in
                 DispatchQueue.main.async {
                     if granted { self.problem = nil; self.refresh() }
@@ -124,6 +130,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                                       vocabulary: Vocabulary.load()) { [recorder] in recorder.samples(from: $0) }
             session.start()
             self.session = session
+            indicator.show(.listening)
+            startLevels()
         } catch {
             log.error("mic failed: \(error.localizedDescription, privacy: .public)")
             problem = "Microphone unavailable"
@@ -133,6 +141,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func cancel() {
         guard state == .recording else { return }
+        stopLevels()
+        indicator.hide()
         _ = recorder.stop()
         session?.cancel()
         session = nil
@@ -142,6 +152,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func finish() {
         guard state == .recording, let session else { return }
         self.session = nil
+        stopLevels()
         let samples = recorder.stop()
         let releasedAt = Date()
         let seconds = Double(samples.count) / Recorder.sampleRate
@@ -152,9 +163,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             timingLine.title = String(format: "Last: skipped, too short or too quiet (%.1f s)", seconds)
             timingLine.isHidden = false
             state = .idle
+            indicator.show(.message("Didn't catch that"))
             return
         }
         state = .working
+        indicator.show(.writing)
         let tidy = tidyEnabled
         let vocabulary = Vocabulary.load()
         LastRecording.save(samples)
@@ -179,12 +192,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 let finalTidyTime = tidyTime
                 await MainActor.run {
                     Trace.log("paste: \(finalText.count) characters, tidy \(finalTidyTime.map { String(format: "%.2f s", $0) } ?? "off")")
-                    if !finalText.isEmpty { Paster.paste(finalText + " ") }
+                    self.indicator.hide()
+                    if finalText.isEmpty {
+                        self.indicator.show(.message("Didn't catch that"))
+                    } else {
+                        Paster.paste(finalText + " ")
+                    }
                     self.showTiming(audio: seconds, speech: speechTime, tidy: finalTidyTime)
                     self.state = .idle
                 }
             }
         }
+    }
+
+    /// Feeds the pill's bars about 20 times a second while recording.
+    private func startLevels() {
+        levelTimer?.invalidate()
+        let timer = Timer(timeInterval: 0.05, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            let level = Speech.barLevel(self.recorder.recentLevel())
+            self.indicator.push(level: level, seconds: Int(Date().timeIntervalSince(self.pressedAt)))
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        levelTimer = timer
+    }
+
+    private func stopLevels() {
+        levelTimer?.invalidate()
+        levelTimer = nil
     }
 
     private func showTiming(audio: Double, speech: Double, tidy: Double?) {
@@ -209,18 +244,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func refresh() {
         tidyItem.state = tidyEnabled ? .on : .off
-        let symbol: String
+        let icon: NSImage
         if let problem {
             statusLine.title = problem
-            symbol = "exclamationmark.triangle"
+            icon = MenuIcons.problem
         } else {
             switch state {
-            case .loading: statusLine.title = "Loading speech model…"; symbol = "waveform"
-            case .idle: statusLine.title = "Hold Fn to dictate"; symbol = "waveform"
-            case .recording: statusLine.title = "Listening…"; symbol = "mic.fill"
-            case .working: statusLine.title = "Writing…"; symbol = "ellipsis"
+            case .loading: statusLine.title = "Loading speech model…"; icon = MenuIcons.writing
+            case .idle: statusLine.title = "Hold Fn to dictate"; icon = MenuIcons.ready
+            case .recording: statusLine.title = "Listening…"; icon = MenuIcons.listening
+            case .working: statusLine.title = "Writing…"; icon = MenuIcons.writing
             }
         }
-        statusItem?.button?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: "Said")
+        statusItem?.button?.image = icon
     }
 }

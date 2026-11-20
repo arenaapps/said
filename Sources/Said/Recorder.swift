@@ -48,6 +48,15 @@ final class Recorder {
         lock.withLock { index < samples.count ? Array(samples[index...]) : [] }
     }
 
+    /// How loud the last `seconds` of audio were (root mean square), for the on-screen bars.
+    func recentLevel(seconds: Double = 0.1) -> Float {
+        lock.withLock {
+            let n = min(samples.count, Int(seconds * Recorder.sampleRate))
+            guard n > 0 else { return 0 }
+            return Speech.rms(Array(samples.suffix(n)))
+        }
+    }
+
     /// Stops the mic and returns everything recorded since `start()`.
     func stop() -> [Float] {
         guard isRecording else { return [] }

@@ -12,6 +12,12 @@ final class SpeechTests: XCTestCase {
         XCTAssertTrue(Speech.isSilent([]))
     }
 
+    func testBarLevelIsFlatForNoiseAndCapped() {
+        XCTAssertEqual(Speech.barLevel(0.001), 0)
+        XCTAssertEqual(Speech.barLevel(0.5), 1)
+        XCTAssertGreaterThan(Speech.barLevel(0.03), 0.4)
+    }
+
     func testPromptKeepsHedges() {
         XCTAssertTrue(Tidier.systemPrompt.contains("I think"))
     }

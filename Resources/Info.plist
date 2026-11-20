@@ -6,6 +6,8 @@
 	<string>Said</string>
 	<key>CFBundleExecutable</key>
 	<string>Said</string>
+	<key>CFBundleIconFile</key>
+	<string>AppIcon</string>
 	<key>CFBundleIdentifier</key>
 	<string>com.arenaapps.said</string>
 	<key>CFBundleName</key>
