@@ -15,7 +15,7 @@ final class SaidWindow: ObservableObject {
     var onEditWordList: (() -> Void)?
 
     private var window: NSWindow?
-    private var hosting: NSHostingController<SaidView>?
+    private var hosting: NSHostingController<PinnedToTop>?
     private var timer: Timer?
 
     init(setup: Setup, preferences: Preferences) {
@@ -29,7 +29,7 @@ final class SaidWindow: ObservableObject {
         preferences.refresh()
         if let tab { self.tab = tab }
         if window == nil {
-            let hosting = NSHostingController(rootView: SaidView(window: self, setup: setup, preferences: preferences))
+            let hosting = NSHostingController(rootView: PinnedToTop(content: content))
             hosting.sizingOptions = []
             window = Brand.window(title: "Said", content: hosting.view)
             window?.contentViewController = hosting
@@ -49,16 +49,32 @@ final class SaidWindow: ObservableObject {
         self.timer = timer
     }
 
-    /// Resizes the window to the current tab, keeping its top edge where it is.
+    private var content: SaidView { SaidView(window: self, setup: setup, preferences: preferences) }
+
+    /// Resizes the window to the current tab, keeping its top edge where it is. The content is
+    /// pinned to the top, so while the window grows or shrinks only the bottom edge moves.
     func fitToContent(animate: Bool) {
-        guard let window, let hosting else { return }
-        let height = hosting.sizeThatFits(in: NSSize(width: 520, height: 2000)).height
+        guard let window, hosting != nil else { return }
+        // Measured on its own, because the window's view always fills whatever size the window is.
+        let height = NSHostingController(rootView: content).sizeThatFits(in: NSSize(width: 520, height: 2000)).height
         let content = NSSize(width: 520, height: min(height, 2000))
         let size = window.frameRect(forContentRect: NSRect(origin: .zero, size: content)).size
         var frame = window.frame
         frame.origin.y += frame.height - size.height
         frame.size = size
         window.setFrame(frame, display: true, animate: animate && window.isVisible)
+    }
+}
+
+/// Keeps the Said view at the top of the window while it resizes, instead of centred.
+struct PinnedToTop: View {
+    let content: SaidView
+
+    var body: some View {
+        content
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+            .background(Brand.background)
+            .ignoresSafeArea()
     }
 }
 
